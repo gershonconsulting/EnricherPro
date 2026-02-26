@@ -1,0 +1,35 @@
+{
+    "name": "EnricherPro - B2B Contact Enrichment",
+    "short_name": "EnricherPro",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#1565C0",
+    "theme_color": "#1565C0",
+    "description": "Professional B2B contact enrichment with email validation and Google-powered LinkedIn discovery",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
