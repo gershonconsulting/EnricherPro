@@ -57,9 +57,14 @@ class UnifiedRequestHandler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
     
     def do_POST(self):
-        """Handle POST requests - proxy to backend API"""
         if self.path.startswith('/api/') or self.path.startswith('/health'):
             self.proxy_to_backend('POST')
+        else:
+            self.send_error(404, "Not Found")
+
+    def do_DELETE(self):
+        if self.path.startswith('/api/'):
+            self.proxy_to_backend('DELETE')
         else:
             self.send_error(404, "Not Found")
     
@@ -73,11 +78,13 @@ class UnifiedRequestHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             request_body = self.rfile.read(content_length) if content_length > 0 else None
             
-            # Create request
+            # Forward headers including Authorization for JWT auth
             headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Content-Type': self.headers.get('Content-Type', 'application/json'),
+                'Accept': 'application/json',
             }
+            if self.headers.get('Authorization'):
+                headers['Authorization'] = self.headers['Authorization']
             
             req = urllib.request.Request(
                 backend_url,

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/contact_provider.dart';
+import '../providers/auth_provider.dart';
 import '../constants/app_version.dart';
 import 'dashboard_screen.dart';
 import 'contacts_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
+import 'user_files_screen.dart';
 
 class MainLayout extends StatefulWidget {
   final int? initialIndex;
@@ -37,6 +39,11 @@ class _MainLayoutState extends State<MainLayout> {
       route: '/history',
     ),
     NavigationItem(
+      icon: Icons.folder_open,
+      label: 'My Files',
+      route: '/my-files',
+    ),
+    NavigationItem(
       icon: Icons.settings,
       label: 'Settings',
       route: '/settings',
@@ -65,6 +72,8 @@ class _MainLayoutState extends State<MainLayout> {
       case 2:
         return const HistoryScreen();
       case 3:
+        return const UserFilesScreen();
+      case 4:
         return const SettingsScreen();
       default:
         return const DashboardScreen();
@@ -391,10 +400,62 @@ class _MainLayoutState extends State<MainLayout> {
           
           const SizedBox(width: 8),
           
-          // User Profile
-          CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: const Icon(Icons.person, color: Colors.white),
+          // User Profile + logout
+          Consumer<AuthProvider>(
+            builder: (context, auth, _) {
+              final user = auth.user;
+              return PopupMenuButton(
+                tooltip: 'Account',
+                child: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Text(
+                    user != null
+                        ? user.firstName.isNotEmpty
+                            ? user.firstName[0].toUpperCase()
+                            : 'U'
+                        : 'U',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                itemBuilder: (_) => [
+                  if (user != null)
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(user.fullName,
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(user.email,
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[600])),
+                          Text('Plan: ${user.plan}',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[500])),
+                        ],
+                      ),
+                    ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                      value: 'logout',
+                      child: Row(children: [
+                        Icon(Icons.logout, size: 18),
+                        SizedBox(width: 8),
+                        Text('Sign out'),
+                      ])),
+                ],
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await context.read<AuthProvider>().logout();
+                    if (context.mounted) {
+                      Navigator.of(context)
+                          .pushReplacementNamed('/');
+                    }
+                  }
+                },
+              );
+            },
           ),
         ],
       ),

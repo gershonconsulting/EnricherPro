@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -10,140 +11,81 @@ class RegistrationScreen extends StatefulWidget {
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _companyController = TextEditingController();
-  final _titleController = TextEditingController();
-  final _emailController = TextEditingController();
-  
-  bool _isSubmitting = false;
+  final _firstNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _companyCtrl = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  bool _loading = false;
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _companyController.dispose();
-    _titleController.dispose();
-    _emailController.dispose();
+    for (final c in [
+      _firstNameCtrl, _lastNameCtrl, _companyCtrl,
+      _titleCtrl, _emailCtrl, _passwordCtrl, _confirmCtrl
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Email is required';
-    }
-    
-    // Basic email validation
-    final emailRegex = RegExp(
-      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+  String? _required(String? v, String label) =>
+      (v == null || v.trim().isEmpty) ? '$label is required' : null;
+
+  String? _validateEmail(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Email is required';
+    final re = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!re.hasMatch(v.trim())) return 'Enter a valid email address';
+    return null;
+  }
+
+  String? _validatePassword(String? v) {
+    if (v == null || v.isEmpty) return 'Password is required';
+    if (v.length < 8) return 'At least 8 characters';
+    if (!v.contains(RegExp(r'[0-9]'))) return 'Must contain a number';
+    if (!v.contains(RegExp(r'[a-zA-Z]'))) return 'Must contain a letter';
+    return null;
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.register(
+      firstName: _firstNameCtrl.text.trim(),
+      lastName: _lastNameCtrl.text.trim(),
+      company: _companyCtrl.text.trim(),
+      title: _titleCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      password: _passwordCtrl.text,
     );
-    
-    if (!emailRegex.hasMatch(value)) {
-      return 'Please enter a valid email address';
-    }
-    
-    return null;
-  }
 
-  String? _validateRequired(String? value, String fieldName) {
-    if (value == null || value.trim().isEmpty) {
-      return '$fieldName is required';
-    }
-    return null;
-  }
+    if (!mounted) return;
+    setState(() => _loading = false);
 
-  Future<void> _submitRegistration() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      // TODO: Implement actual registration logic here
-      // For now, just simulate API call
-      await Future.delayed(const Duration(seconds: 2));
-      
-      final registrationData = {
-        'firstName': _firstNameController.text.trim(),
-        'lastName': _lastNameController.text.trim(),
-        'companyName': _companyController.text.trim(),
-        'title': _titleController.text.trim(),
-        'email': _emailController.text.trim(),
-        'registrationDate': DateTime.now().toIso8601String(),
-      };
-      
-      if (kDebugMode) {
-        print('📝 NEW USER REGISTRATION:');
-        print('   First Name: ${registrationData['firstName']}');
-        print('   Last Name: ${registrationData['lastName']}');
-        print('   Company: ${registrationData['companyName']}');
-        print('   Title: ${registrationData['title']}');
-        print('   Email: ${registrationData['email']}');
-      }
-
-      if (mounted) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Registration Successful!',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        'Welcome, ${registrationData['firstName']}!',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-
-        // Clear form
-        _formKey.currentState!.reset();
-        _firstNameController.clear();
-        _lastNameController.clear();
-        _companyController.clear();
-        _titleController.clear();
-        _emailController.clear();
-
-        // Navigate back or to dashboard
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Registration failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Welcome, ${auth.user?.firstName ?? ''}! Account created.'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/dashboard');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.error ?? 'Registration failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -151,8 +93,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New User Registration'),
-        elevation: 0,
+        title: const Text('Create Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _loading
+              ? null
+              : () => Navigator.of(context).pushReplacementNamed('/login'),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -164,7 +111,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header
                   Card(
                     elevation: 0,
                     color: Theme.of(context).colorScheme.primaryContainer,
@@ -172,186 +118,138 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          Icon(
-                            Icons.person_add,
-                            size: 48,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                          Icon(Icons.person_add,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.primary),
                           const SizedBox(height: 12),
-                          Text(
-                            'Create New Account',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Please fill in all required information',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[700],
-                            ),
-                          ),
+                          Text('Create New Account',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text('Fill in your details to get started',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Colors.grey[700])),
                         ],
                       ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // First Name
+                  const SizedBox(height: 24),
+
+                  // Name row
+                  Row(
+                    children: [
+                      Expanded(child: _field(_firstNameCtrl, 'First Name *',
+                          Icons.person_outline,
+                          validator: (v) => _required(v, 'First Name'),
+                          capitalize: true)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_lastNameCtrl, 'Last Name *',
+                          Icons.person_outline,
+                          validator: (v) => _required(v, 'Last Name'),
+                          capitalize: true)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(_companyCtrl, 'Company *', Icons.business,
+                      validator: (v) => _required(v, 'Company'), capitalize: true),
+                  const SizedBox(height: 16),
+                  _field(_titleCtrl, 'Job Title *', Icons.work_outline,
+                      validator: (v) => _required(v, 'Job Title'), capitalize: true),
+                  const SizedBox(height: 16),
+                  _field(_emailCtrl, 'Email Address *', Icons.email_outlined,
+                      validator: _validateEmail,
+                      keyboard: TextInputType.emailAddress),
+                  const SizedBox(height: 16),
+
+                  // Password
                   TextFormField(
-                    controller: _firstNameController,
+                    controller: _passwordCtrl,
+                    obscureText: _obscurePassword,
+                    enabled: !_loading,
                     decoration: InputDecoration(
-                      labelText: 'First Name *',
-                      hintText: 'Enter your first name',
-                      prefixIcon: const Icon(Icons.person_outline),
+                      labelText: 'Password *',
+                      hintText: 'Min. 8 chars, 1 letter, 1 number',
+                      prefixIcon: const Icon(Icons.lock_outline),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                          borderRadius: BorderRadius.circular(12)),
                       filled: true,
                       fillColor: Colors.grey[50],
-                    ),
-                    validator: (value) => _validateRequired(value, 'First Name'),
-                    textCapitalization: TextCapitalization.words,
-                    enabled: !_isSubmitting,
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Last Name
-                  TextFormField(
-                    controller: _lastNameController,
-                    decoration: InputDecoration(
-                      labelText: 'Last Name *',
-                      hintText: 'Enter your last name',
-                      prefixIcon: const Icon(Icons.person_outline),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
                       ),
+                    ),
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm password
+                  TextFormField(
+                    controller: _confirmCtrl,
+                    obscureText: _obscureConfirm,
+                    enabled: !_loading,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password *',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       filled: true,
                       fillColor: Colors.grey[50],
-                    ),
-                    validator: (value) => _validateRequired(value, 'Last Name'),
-                    textCapitalization: TextCapitalization.words,
-                    enabled: !_isSubmitting,
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Company Name
-                  TextFormField(
-                    controller: _companyController,
-                    decoration: InputDecoration(
-                      labelText: 'Company Name *',
-                      hintText: 'Enter your company name',
-                      prefixIcon: const Icon(Icons.business),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm
+                            ? Icons.visibility_off
+                            : Icons.visibility),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
                     ),
-                    validator: (value) => _validateRequired(value, 'Company Name'),
-                    textCapitalization: TextCapitalization.words,
-                    enabled: !_isSubmitting,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Please confirm your password';
+                      if (v != _passwordCtrl.text) return 'Passwords do not match';
+                      return null;
+                    },
                   ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Title
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: 'Job Title *',
-                      hintText: 'Enter your job title',
-                      prefixIcon: const Icon(Icons.work_outline),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    validator: (value) => _validateRequired(value, 'Job Title'),
-                    textCapitalization: TextCapitalization.words,
-                    enabled: !_isSubmitting,
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Email Address
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email Address *',
-                      hintText: 'Enter your email address',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    validator: _validateEmail,
-                    keyboardType: TextInputType.emailAddress,
-                    enabled: !_isSubmitting,
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Submit Button
+                  const SizedBox(height: 28),
+
                   ElevatedButton(
-                    onPressed: _isSubmitting ? null : _submitRegistration,
+                    onPressed: _loading ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                          borderRadius: BorderRadius.circular(12)),
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Colors.white,
                     ),
-                    child: _isSubmitting
-                        ? const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Text('Submitting...'),
-                            ],
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check_circle_outline),
-                              SizedBox(width: 8),
-                              Text(
-                                'Create Account',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
+                    child: _loading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Text('Create Account',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
-                  
                   const SizedBox(height: 16),
-                  
-                  // Required fields note
-                  Text(
-                    '* All fields are required',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Already have an account? '),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => Navigator.of(context)
+                                .pushReplacementNamed('/login'),
+                        child: const Text('Sign in'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -359,6 +257,32 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController ctrl,
+    String label,
+    IconData icon, {
+    String? Function(String?)? validator,
+    bool capitalize = false,
+    TextInputType? keyboard,
+  }) {
+    return TextFormField(
+      controller: ctrl,
+      enabled: !_loading,
+      keyboardType: keyboard,
+      textCapitalization:
+          capitalize ? TextCapitalization.words : TextCapitalization.none,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border:
+            OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      validator: validator,
     );
   }
 }
