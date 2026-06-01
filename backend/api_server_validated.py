@@ -755,6 +755,43 @@ def enrich_batch():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v5/deploy', methods=['POST'])
+def deploy_v5():
+        """
+            One-shot deploy endpoint: git pull + install deps + restart as api_server_v5.
+                POST /api/v5/deploy  (no auth needed on sandbox)
+                    """
+        import subprocess, sys, threading, time
+
+    def do_deploy():
+                time.sleep(1)  # Let the HTTP response send first
+                try:
+                                repo_dir = os.path.dirname(os.path.abspath(__file__))
+                                # 1. git pull
+            subprocess.run(['git', '-C', repo_dir, 'pull'], check=True, capture_output=True)
+            # 2. install deps
+            subprocess.run(
+                                [sys.executable, '-m', 'pip', 'install', '-r',
+                                                  os.path.join(repo_dir, 'requirements_v5.txt'), '-q'],
+                                check=True, capture_output=True
+            )
+            # 3. start v5 server on port 5000 (replace this process)
+            env = os.environ.copy()
+            subprocess.Popen(
+                                [sys.executable, os.path.join(repo_dir, 'api_server_v5.py')],
+                                env=env
+            )
+            # 4. kill this process
+            time.sleep(2)
+            os.kill(os.getpid(), 9)
+except Exception as e:
+            print(f'Deploy error: {e}')
+
+    threading.Thread(target=do_deploy, daemon=True).start()
+    return jsonify({'status': 'deploying', 'message': 'v5.0 deployment started — server will restart in ~5s'}), 202
+
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("⚡ EnricherPro API v8.0 - LINKEDIN ALWAYS ENABLED")
