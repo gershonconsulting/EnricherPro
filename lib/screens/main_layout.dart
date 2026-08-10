@@ -73,25 +73,24 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 760;
+    final content = Column(
+      children: [
+        _buildTopBar(),
+        Expanded(child: _getScreen(_selectedIndex)),
+      ],
+    );
+
     return Scaffold(
-      body: Row(
-        children: [
-          // Left Sidebar Navigation
-          _buildSidebar(),
-          
-          // Main Content Area
-          Expanded(
+      body: compact
+          ? content
+          : Row(
+              children: [
+                _buildSidebar(),
+                Expanded(
             child: Stack(
               children: [
-                // Main content
-                Column(
-                  children: [
-                    _buildTopBar(),
-                    Expanded(
-                      child: _getScreen(_selectedIndex),
-                    ),
-                  ],
-                ),
+                content,
                 
                 // Version number (bottom-right)
                 Positioned(
@@ -122,21 +121,32 @@ class _MainLayoutState extends State<MainLayout> {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
+                ),
+              ],
+            ),
+      bottomNavigationBar: compact
+          ? NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+              destinations: _navigationItems
+                  .map((item) => NavigationDestination(
+                        icon: Icon(item.icon),
+                        label: item.label,
+                      ))
+                  .toList(),
+            )
+          : null,
     );
   }
 
   Widget _buildSidebar() {
-    final theme = Theme.of(context);
     final width = _isDrawerExpanded ? 240.0 : 72.0;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: width,
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
+        color: const Color(0xFF0B1F33),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -309,7 +319,7 @@ class _MainLayoutState extends State<MainLayout> {
             ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.white.withValues(alpha: 0.15)
+                  ? const Color(0xFF2563EB)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -367,6 +377,27 @@ class _MainLayoutState extends State<MainLayout> {
             ),
           ),
           const Spacer(),
+          Consumer<ContactProvider>(
+            builder: (context, provider, _) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: (provider.apiHealthy ? const Color(0xFF20B486) : Colors.orange)
+                    .withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(children: [
+                Icon(Icons.circle,
+                    size: 8,
+                    color: provider.apiHealthy ? const Color(0xFF20B486) : Colors.orange),
+                const SizedBox(width: 7),
+                Text(
+                  provider.apiHealthy ? 'API connected' : 'API unavailable',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 12),
           
           // Test API Button
           IconButton(

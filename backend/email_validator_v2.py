@@ -1,226 +1,238 @@
+"""Reliable, conservative email validation for EnricherPro.
+
+The validator deliberately separates a confirmed rejection from an
+inconclusive network result. SMTP servers commonly tarp-pit, rate-limit, or
+accept every recipient, so an SMTP timeout must never be reported as invalid.
 """
-email_validator_v2.py — EnricherPro v5.0
-7-layer email validation pipeline:
-  1. Syntax check
-    2. DNS / MX record lookup
-      3. Role-based address detection
-        4. Disposable domain check
-          5. SMTP verification
-            6. Catch-all domain detection
-              7. ZeroBounce / NeverBounce AI scoring (if keys configured)
-              """
+
+from __future__ import annotations
 
 import re
-import dns.resolver
+import secrets
 import smtplib
 import socket
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+
+import dns.exception
+import dns.resolver
 import requests
-from typing import Dict, Any, List
+
 from config import (
-    ZEROBOUNCE_API_KEY,
-    NEVERBOUNCE_API_KEY,
     ENABLE_SMTP_CHECK,
+    NEVERBOUNCE_API_KEY,
     SMTP_TIMEOUT_SECONDS,
+    ZEROBOUNCE_API_KEY,
 )
 
-# ── Layer 3: Role-based prefixes ───────────────────────────────────────────────
+EMAIL_RE = re.compile(
+    r"^(?=.{1,254}$)(?=.{1,64}@)[A-Z0-9!#$%&'*+/=?^_`{|}~-]+"
+    r"(?:\.[A-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@"
+    r"(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}$",
+    re.IGNORECASE,
+)
+
 ROLE_BASED_PREFIXES = {
-      "admin", "info", "support", "sales", "contact", "hello", "help",
-      "noreply", "no-reply", "postmaster", "webmaster", "billing",
-      "hr", "jobs", "careers", "press", "media", "legal", "abuse",
-      "security", "privacy", "marketing", "newsletter", "team",
+    "abuse", "admin", "billing", "careers", "contact", "help", "hello",
+    "hr", "info", "jobs", "legal", "marketing", "media", "newsletter",
+    "no-reply", "noreply", "postmaster", "press", "privacy", "sales",
+    "security", "support", "team", "webmaster",
 }
 
-# ── Layer 4: Disposable domain list (sample — extend as needed) ────────────────
 DISPOSABLE_DOMAINS = {
-      "mailinator.com", "guerrillamail.com", "tempmail.com", "throwam.com",
-      "yopmail.com", "sharklasers.com", "guerrillamailblock.com",
-      "trashmail.com", "maildrop.cc", "dispostable.com", "fakeinbox.com",
-      "getnada.com", "mailnull.com", "spam4.me", "mytemp.email",
+    "dispostable.com", "fakeinbox.com", "getnada.com", "guerrillamail.com",
+    "guerrillamailblock.com", "maildrop.cc", "mailinator.com", "mailnull.com",
+    "mytemp.email", "sharklasers.com", "spam4.me", "tempmail.com",
+    "throwam.com", "trashmail.com", "yopmail.com",
 }
 
 
+@dataclass
 class ValidationResult:
-      def __init__(self):
-                self.is_valid: bool = False
-                self.status: str = "unknown"   # valid | invalid | catch_all | unknown
-        self.score: float = 0.0        # 0.0–1.0 confidence
-        self.layers_passed: List[str] = []
-        self.layers_failed: List[str] = []
-        self.details: Dict[str, Any] = {}
+    is_valid: bool = False
+    status: str = "unknown"  # valid | invalid | risky | unknown
+    score: float = 0.0
+    layers_passed: List[str] = field(default_factory=list)
+    layers_failed: List[str] = field(default_factory=list)
+    details: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-              return {
-                            "is_valid": self.is_valid,
-                            "status": self.status,
-                            "score": round(self.score, 3),
-                            "layers_passed": self.layers_passed,
-                            "layers_failed": self.layers_failed,
-                            "details": self.details,
-              }
+        data = asdict(self)
+        data["score"] = round(self.score, 3)
+        return data
 
 
 def validate_email(email: str) -> ValidationResult:
-      """Run all 7 validation layers and return a ValidationResult."""
     result = ValidationResult()
-    email = email.strip().lower()
+    normalized = str(email or "").strip().lower()
+    result.details["email"] = normalized
 
-    # ── Layer 1: Syntax ────────────────────────────────────────────────────────
-    syntax_pattern = r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$'
-    if not re.match(syntax_pattern, email):
-              result.layers_failed.append("syntax")
-              result.status = "invalid"
-              result.details["syntax_error"] = "Email does not match valid format"
-              return result
-          result.layers_passed.append("syntax")
+    if not EMAIL_RE.fullmatch(normalized):
+        return _invalid(result, "syntax", "Email address has an invalid format")
+    result.layers_passed.append("syntax")
 
-    local_part, domain = email.rsplit("@", 1)
+    local_part, domain = normalized.rsplit("@", 1)
+    if local_part in ROLE_BASED_PREFIXES:
+        result.details["role_based"] = True
+        result.details["warning"] = "Role-based mailbox"
+    else:
+        result.layers_passed.append("not_role_based")
 
-    # ── Layer 2: DNS / MX record ───────────────────────────────────────────────
-    try:
-              mx_records = dns.resolver.resolve(domain, "MX")
-              mx_hosts = [str(r.exchange).rstrip(".") for r in mx_records]
-              result.layers_passed.append("dns_mx")
-              result.details["mx_records"] = mx_hosts[:3]
-except Exception as e:
+    if domain in DISPOSABLE_DOMAINS:
+        return _invalid(result, "disposable", "Disposable email provider")
+    result.layers_passed.append("not_disposable")
+
+    mx_hosts, dns_state, dns_message = _resolve_mx(domain)
+    if dns_state == "invalid":
+        return _invalid(result, "dns_mx", dns_message)
+    if dns_state == "unknown":
         result.layers_failed.append("dns_mx")
-        result.status = "invalid"
-        result.details["dns_error"] = str(e)
+        result.details["dns_error"] = dns_message
+        result.status = "unknown"
+        result.score = 0.25
         return result
 
-    # ── Layer 3: Role-based ────────────────────────────────────────────────────
-    if local_part in ROLE_BASED_PREFIXES:
-              result.layers_failed.append("role_based")
-              result.details["role_based"] = True
-              result.status = "invalid"
-              return result
-          result.layers_passed.append("role_based")
+    result.layers_passed.append("dns_mx")
+    result.details["mx_records"] = mx_hosts[:5]
 
-    # ── Layer 4: Disposable ────────────────────────────────────────────────────
-    if domain in DISPOSABLE_DOMAINS:
-              result.layers_failed.append("disposable")
-              result.status = "invalid"
-              result.details["disposable"] = True
-              return result
-          result.layers_passed.append("disposable")
+    if ENABLE_SMTP_CHECK:
+        smtp_state, smtp_detail = _verify_across_mx(normalized, mx_hosts)
+        result.details["smtp"] = smtp_detail
+        if smtp_state == "invalid":
+            return _invalid(result, "smtp", "Recipient rejected by mail server")
+        if smtp_state == "valid":
+            result.layers_passed.append("smtp")
+        else:
+            result.layers_failed.append("smtp_inconclusive")
+    else:
+        smtp_state = "skipped"
+        result.details["smtp"] = {"state": "skipped"}
 
-    # ── Layer 5: SMTP verification ─────────────────────────────────────────────
-    catch_all = False
-    if ENABLE_SMTP_CHECK and mx_hosts:
-              try:
-                            smtp_valid, is_catch_all = _smtp_verify(email, mx_hosts[0])
-                            if is_catch_all:
-                                              catch_all = True
-                                              result.layers_passed.append("smtp")
-                                              result.details["smtp_catch_all"] = True
-    elif smtp_valid:
-                result.layers_passed.append("smtp")
-else:
-                result.layers_failed.append("smtp")
-                  result.status = "invalid"
-                return result
-except Exception as e:
-            result.layers_passed.append("smtp")  # inconclusive, don't fail
-            result.details["smtp_error"] = str(e)
-else:
-        result.layers_passed.append("smtp")  # skipped
-
-    # ── Layer 6: Catch-all detection ───────────────────────────────────────────
-    if not catch_all:
-              catch_all = _is_catch_all(domain, mx_hosts)
-    result.layers_passed.append("catch_all")
+    catch_all: Optional[bool] = None
+    if ENABLE_SMTP_CHECK and smtp_state in {"valid", "unknown"}:
+        catch_all = _detect_catch_all(domain, mx_hosts)
     result.details["catch_all"] = catch_all
 
-    # ── Layer 7: ZeroBounce / NeverBounce ─────────────────────────────────────
-    if ZEROBOUNCE_API_KEY:
-              zb = _zerobounce_check(email)
-        result.details["zerobounce"] = zb
-        result.layers_passed.append("zerobounce")
-        if zb.get("status") == "valid":
-                      result.score = max(result.score, 0.95)
-elif zb.get("status") == "invalid":
-            result.status = "invalid"
-            return result
-elif NEVERBOUNCE_API_KEY:
-        nb = _neverbounce_check(email)
-        result.details["neverbounce"] = nb
-        result.layers_passed.append("neverbounce")
-        if nb.get("result") == "valid":
-                      result.score = max(result.score, 0.90)
-elif nb.get("result") == "invalid":
-            result.status = "invalid"
-            return result
+    external = _external_validation(normalized)
+    if external:
+        result.details["external_validator"] = external
+        if external["state"] == "invalid":
+            return _invalid(result, "external_validator", "Rejected by validation provider")
+        if external["state"] == "valid":
+            result.layers_passed.append("external_validator")
 
-    # ── Final status ───────────────────────────────────────────────────────────
-    if catch_all:
-              result.status = "catch_all"
+    if catch_all is True:
+        result.status = "risky"
         result.is_valid = True
-        result.score = max(result.score, 0.5)
-else:
+        result.score = 0.55
+        result.details["reason"] = "Domain accepts unrecognized recipients"
+    elif smtp_state == "valid" or (external and external["state"] == "valid"):
         result.status = "valid"
         result.is_valid = True
-        result.score = max(result.score, 0.85)
-
+        result.score = 0.96 if external and external["state"] == "valid" else 0.9
+        result.details["reason"] = "Mailbox accepted by mail server"
+    elif smtp_state in {"unknown", "skipped"}:
+        result.status = "unknown"
+        result.is_valid = False
+        result.score = 0.65
+        result.details["reason"] = "Domain can receive email; mailbox could not be confirmed"
     return result
 
 
-# ── SMTP helpers ───────────────────────────────────────────────────────────────
-
-def _smtp_verify(email: str, mx_host: str):
-      """Return (is_valid, is_catch_all). Raises on connection error."""
-    probe = f"probe_{email}"
-    responses = {}
-    for addr in [email, probe]:
-              try:
-                            with smtplib.SMTP(timeout=SMTP_TIMEOUT_SECONDS) as smtp:
-                                              smtp.connect(mx_host, 25)
-                                              smtp.helo(socket.getfqdn())
-                                              smtp.mail("verify@enricherpro.com")
-                                              code, _ = smtp.rcpt(addr)
-                                              responses[addr] = code
-              except smtplib.SMTPConnectError:
-            raise
-except Exception:
-            responses[addr] = 550
-    real_ok = responses.get(email, 550) == 250
-    probe_ok = responses.get(probe, 550) == 250
-    is_catch_all = probe_ok  # if a random address is accepted, domain is catch-all
-    return (real_ok or is_catch_all), is_catch_all
+def _invalid(result: ValidationResult, layer: str, reason: str) -> ValidationResult:
+    result.status = "invalid"
+    result.is_valid = False
+    result.score = 0.0
+    result.layers_failed.append(layer)
+    result.details["reason"] = reason
+    return result
 
 
-def _is_catch_all(domain: str, mx_hosts: list) -> bool:
-      """Quick catch-all probe without full SMTP dialog."""
-    if not mx_hosts:
-              return False
-    probe = f"zzz_probe_9x8y7z@{domain}"
+def _resolve_mx(domain: str) -> Tuple[List[str], str, str]:
+    resolver = dns.resolver.Resolver()
+    resolver.timeout = min(3.0, float(SMTP_TIMEOUT_SECONDS))
+    resolver.lifetime = min(5.0, float(SMTP_TIMEOUT_SECONDS))
     try:
-              _, is_catch_all = _smtp_verify(probe, mx_hosts[0])
-        return is_catch_all
-except Exception:
-        return False
+        answers = resolver.resolve(domain, "MX")
+        ordered = sorted(answers, key=lambda record: int(record.preference))
+        hosts = [str(record.exchange).rstrip(".") for record in ordered]
+        if not hosts or hosts == [""]:
+            return [], "invalid", "Domain publishes a null MX record"
+        return hosts, "valid", ""
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+        return [], "invalid", "Domain has no usable MX records"
+    except (dns.exception.Timeout, dns.resolver.NoNameservers) as exc:
+        return [], "unknown", f"DNS lookup was inconclusive: {exc.__class__.__name__}"
+    except Exception as exc:
+        return [], "unknown", f"DNS lookup failed: {exc.__class__.__name__}"
 
 
-# ── External validator helpers ─────────────────────────────────────────────────
-
-def _zerobounce_check(email: str) -> Dict[str, Any]:
-      try:
-                resp = requests.get(
-                    "https://api.zerobounce.net/v2/validate",
-                    params={"api_key": ZEROBOUNCE_API_KEY, "email": email},
-                    timeout=10,
-      )
-        return resp.json()
-except Exception as e:
-        return {"error": str(e)}
+def _verify_across_mx(email: str, mx_hosts: List[str]) -> Tuple[str, Dict[str, Any]]:
+    responses: List[Dict[str, Any]] = []
+    for host in mx_hosts[:3]:
+        state, code, message = _smtp_rcpt(host, email)
+        responses.append({"host": host, "state": state, "code": code, "message": message})
+        if state in {"valid", "invalid"}:
+            return state, {"state": state, "attempts": responses}
+    return "unknown", {"state": "unknown", "attempts": responses}
 
 
-def _neverbounce_check(email: str) -> Dict[str, Any]:
-      try:
-                resp = requests.get(
-                    "https://api.neverbounce.com/v4/single/check",
-                    params={"key": NEVERBOUNCE_API_KEY, "email": email},
-                    timeout=10,
-      )
-        return resp.json()
-except Exception as e:
-        return {"error": str(e)}
+def _smtp_rcpt(host: str, recipient: str) -> Tuple[str, Optional[int], str]:
+    try:
+        with smtplib.SMTP(timeout=SMTP_TIMEOUT_SECONDS) as smtp:
+            smtp.connect(host, 25)
+            smtp.ehlo_or_helo_if_needed()
+            smtp.mail("verify@enricherpro.com")
+            code, raw_message = smtp.rcpt(recipient)
+        message = raw_message.decode("utf-8", "replace")[:240]
+        if code in {250, 251, 252}:
+            return "valid", code, message
+        if code in {550, 551, 553}:
+            return "invalid", code, message
+        return "unknown", code, message
+    except (socket.timeout, TimeoutError, smtplib.SMTPServerDisconnected):
+        return "unknown", None, "Mail server did not provide a conclusive response"
+    except (OSError, smtplib.SMTPException) as exc:
+        return "unknown", None, exc.__class__.__name__
+
+
+def _detect_catch_all(domain: str, mx_hosts: List[str]) -> Optional[bool]:
+    probe = f"enricherpro-{secrets.token_hex(8)}@{domain}"
+    saw_conclusive = False
+    for host in mx_hosts[:2]:
+        state, _, _ = _smtp_rcpt(host, probe)
+        if state == "valid":
+            return True
+        if state == "invalid":
+            saw_conclusive = True
+            return False
+    return False if saw_conclusive else None
+
+
+def _external_validation(email: str) -> Optional[Dict[str, Any]]:
+    try:
+        if ZEROBOUNCE_API_KEY:
+            response = requests.get(
+                "https://api.zerobounce.net/v2/validate",
+                params={"api_key": ZEROBOUNCE_API_KEY, "email": email},
+                timeout=10,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            status = payload.get("status", "unknown")
+            state = "valid" if status == "valid" else "invalid" if status == "invalid" else "unknown"
+            return {"provider": "zerobounce", "state": state, "status": status}
+        if NEVERBOUNCE_API_KEY:
+            response = requests.get(
+                "https://api.neverbounce.com/v4/single/check",
+                params={"key": NEVERBOUNCE_API_KEY, "email": email},
+                timeout=10,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            status = payload.get("result", "unknown")
+            state = "valid" if status == "valid" else "invalid" if status == "invalid" else "unknown"
+            return {"provider": "neverbounce", "state": state, "status": status}
+    except (requests.RequestException, ValueError):
+        return {"provider": "configured", "state": "unknown", "status": "unavailable"}
+    return None

@@ -1,596 +1,390 @@
 import 'package:flutter/material.dart';
-import '../constants/app_version.dart';
 
-class LandingScreen extends StatefulWidget {
+const _ink = Color(0xFF102A43);
+const _navy = Color(0xFF0B1F33);
+const _blue = Color(0xFF2563EB);
+const _mint = Color(0xFF20B486);
+const _cloud = Color(0xFFF5F8FC);
+
+class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
-
-  @override
-  State<LandingScreen> createState() => _LandingScreenState();
-}
-
-class _LandingScreenState extends State<LandingScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    );
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.grey[50]!,
-              Colors.grey[100]!,
+      backgroundColor: Colors.white,
+      body: SelectionArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _Header(onLaunch: () => Navigator.pushNamed(context, '/dashboard')),
+              _Hero(onLaunch: () => Navigator.pushNamed(context, '/dashboard')),
+              const _TrustStrip(),
+              const _Workflow(),
+              const _ValidationSection(),
+              _FinalCta(onLaunch: () => Navigator.pushNamed(context, '/dashboard')),
+              const _Footer(),
             ],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildHeader(context),
-                  _buildHeroSection(context),
-                  _buildFeaturesSection(context),
-                  _buildStatsSection(context),
-                  _buildCTASection(context),
-                  _buildFooter(context),
-                ],
-              ),
-            ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Image.asset(
-              'assets/images/enricherpro_logo_large.png',
-              height: 60,
-              fit: BoxFit.contain,
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/dashboard');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue[900],
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              elevation: 4,
-            ),
-            child: const Text(
-              'Get Started',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _PageWidth extends StatelessWidget {
+  const _PageWidth({required this.child});
+  final Widget child;
 
-  Widget _buildHeroSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
-      child: Column(
-        children: [
-          Text(
-            'Transform Your Sales Prospecting',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey[900],
-              fontSize: 56,
-              fontWeight: FontWeight.bold,
-              height: 1.2,
-              letterSpacing: -1,
-            ),
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1180),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: child,
           ),
-          const SizedBox(height: 24),
-          Text(
-            'With Verified Email Addresses',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey[900],
-              fontSize: 56,
-              fontWeight: FontWeight.bold,
-              height: 1.2,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 40),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Text(
-              'EnricherPro delivers the most reliable B2B contact data for your sales team. Our advanced email validation and LinkedIn discovery ensure you reach the right decision-makers every time.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 22,
-                height: 1.6,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-          const SizedBox(height: 60),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/dashboard');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 8,
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.rocket_launch, size: 28),
-                    SizedBox(width: 12),
-                    Text(
-                      'Start Enriching Now',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 24),
-              OutlinedButton(
-                onPressed: () {
-                  // Scroll to features
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blue[700],
-                  side: BorderSide(color: Colors.blue[700]!, width: 2),
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-                child: const Text(
-                  'Learn More',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+        ),
+      );
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.onLaunch});
+  final VoidCallback onLaunch;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 560;
+    return _PageWidth(
+      child: SizedBox(
+        height: 88,
+        child: Row(
+          children: [
+            Image.asset('assets/images/enricherpro_logo_large.png', height: 48),
+            const Spacer(),
+            if (MediaQuery.sizeOf(context).width > 760) ...[
+              const _NavLink('How it works'),
+              const _NavLink('Validation'),
+              const _NavLink('Security'),
+              const SizedBox(width: 16),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeaturesSection(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
-      child: Column(
-        children: [
-          const Text(
-            'Why Sales Teams Trust EnricherPro',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 42,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'The most reliable contact enrichment platform for B2B sales professionals',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 80),
-          Wrap(
-            spacing: 40,
-            runSpacing: 40,
-            alignment: WrapAlignment.center,
-            children: [
-              _buildFeatureCard(
-                icon: Icons.verified,
-                iconColor: Colors.green[600]!,
-                title: 'MX Record Validation',
-                description:
-                    'Every email is validated through real MX records and SMTP verification. No fake addresses, no bounces.',
-              ),
-              _buildFeatureCard(
-                icon: Icons.search,
-                iconColor: Colors.blue[600]!,
-                title: 'Google-Powered Discovery',
-                description:
-                    'Leverages Google Search to find accurate LinkedIn profiles and company information.',
-              ),
-              _buildFeatureCard(
-                icon: Icons.speed,
-                iconColor: Colors.orange[600]!,
-                title: 'Lightning Fast',
-                description:
-                    'Enrich hundreds of contacts in minutes. Parallel processing ensures maximum speed.',
-              ),
-              _buildFeatureCard(
-                icon: Icons.psychology,
-                iconColor: Colors.purple[600]!,
-                title: 'Smart Confidence Scores',
-                description:
-                    'Advanced pattern matching gives you confidence levels (15-95%) for every email found.',
-              ),
-              _buildFeatureCard(
-                icon: Icons.shield,
-                iconColor: Colors.red[600]!,
-                title: 'GDPR Compliant',
-                description:
-                    'All data sourced from publicly available information. Fully compliant with data regulations.',
-              ),
-              _buildFeatureCard(
-                icon: Icons.cloud_upload,
-                iconColor: Colors.teal[600]!,
-                title: 'Bulk Processing',
-                description:
-                    'Upload CSV files with hundreds of contacts and get enriched data in one batch.',
-              ),
+            if (!compact) ...[
+              OutlinedButton(onPressed: onLaunch, child: const Text('Sign in')),
+              const SizedBox(width: 10),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      width: 350,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: Colors.grey[200]!,
-          width: 1,
+            FilledButton(
+              onPressed: onLaunch,
+              child: Text(compact ? 'Open' : 'Open workspace'),
+            ),
+          ],
         ),
       ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 40,
-              color: iconColor,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey[600],
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
     );
   }
+}
 
-  Widget _buildStatsSection(BuildContext context) {
-    return Container(
-      color: Colors.blue[50],
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
-      child: Column(
-        children: [
-          const Text(
-            'Trusted by Sales Professionals Worldwide',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 42,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 80),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildStatCard(
-                value: '95%',
-                label: 'Email Accuracy',
-                color: Colors.green[600]!,
-              ),
-              _buildStatCard(
-                value: '2-5s',
-                label: 'Per Contact',
-                color: Colors.blue[600]!,
-              ),
-              _buildStatCard(
-                value: '100%',
-                label: 'GDPR Compliant',
-                color: Colors.purple[600]!,
-              ),
-              _buildStatCard(
-                value: '24/7',
-                label: 'Availability',
-                color: Colors.orange[600]!,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+class _NavLink extends StatelessWidget {
+  const _NavLink(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: () {},
+        child: Text(label, style: const TextStyle(color: _ink)),
+      );
+}
 
-  Widget _buildStatCard({
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Column(
+class _Hero extends StatelessWidget {
+  const _Hero({required this.onLaunch});
+  final VoidCallback onLaunch;
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 880;
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _Eyebrow('B2B CONTACT INTELLIGENCE'),
+        const SizedBox(height: 22),
         Text(
-          value,
-          style: TextStyle(
-            fontSize: 56,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          'Turn a contact list into a pipeline you can trust.',
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                color: _navy,
+                fontWeight: FontWeight.w800,
+                height: 1.02,
+                letterSpacing: -2,
+              ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
         Text(
-          label,
-          style: const TextStyle(
-            fontSize: 18,
-            color: Colors.black54,
-            fontWeight: FontWeight.w500,
-          ),
+          'EnricherPro finds professional emails, validates deliverability, and keeps the evidence behind every result—before your team hits send.',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: const Color(0xFF52677D),
+                fontWeight: FontWeight.w400,
+                height: 1.5,
+              ),
+        ),
+        const SizedBox(height: 34),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            FilledButton.icon(
+              onPressed: onLaunch,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: const Text('Enrich your first list'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onLaunch,
+              icon: const Icon(Icons.play_circle_outline),
+              label: const Text('Explore the workspace'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'CSV in • Verified data out • No credit card required',
+          style: TextStyle(color: Color(0xFF6B7F93), fontWeight: FontWeight.w600),
         ),
       ],
     );
-  }
-
-  Widget _buildCTASection(BuildContext context) {
+    const visual = _ProductPreview();
     return Container(
-      color: Colors.blue[900],
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
-      child: Column(
-        children: [
-          const Text(
-            'Ready to Supercharge Your Sales?',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Start enriching your contact lists today and close more deals tomorrow.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-          const SizedBox(height: 60),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFF8FBFF), Color(0xFFEFF7F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 76),
+      child: _PageWidth(
+        child: narrow
+            ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [copy, const SizedBox(height: 48), visual])
+            : Row(children: [Expanded(child: copy), const SizedBox(width: 64), const Expanded(child: visual)]),
+      ),
+    );
+  }
+}
+
+class _Eyebrow extends StatelessWidget {
+  const _Eyebrow(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(color: _blue, fontWeight: FontWeight.w800, letterSpacing: 1.5),
+      );
+}
+
+class _ProductPreview extends StatelessWidget {
+  const _ProductPreview();
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDDE7F0)),
+          boxShadow: const [BoxShadow(color: Color(0x1A183B56), blurRadius: 40, offset: Offset(0, 18))],
+        ),
+        child: Column(
+          children: [
+            Row(children: [
+              const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE8F0FF), child: Icon(Icons.person_outline, color: _blue)),
+              const SizedBox(width: 12),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Maya Laurent', style: TextStyle(fontWeight: FontWeight.w800, color: _ink)),
+                Text('VP, Revenue Operations', style: TextStyle(color: Color(0xFF6B7F93))),
+              ])),
+              _status('VERIFIED', _mint),
+            ]),
+            const SizedBox(height: 22),
+            _resultRow(Icons.alternate_email, 'maya.laurent@northstar.io', 'Mailbox confirmed'),
+            _resultRow(Icons.dns_outlined, 'northstar.io', 'MX records active'),
+            _resultRow(Icons.shield_outlined, 'Deliverability score', '96 / 100'),
+            const SizedBox(height: 14),
+            const LinearProgressIndicator(value: .96, minHeight: 8, borderRadius: BorderRadius.all(Radius.circular(8))),
+          ],
+        ),
+      );
+}
+
+Widget _resultRow(IconData icon, String title, String detail) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(children: [
+        Icon(icon, size: 20, color: _blue),
+        const SizedBox(width: 12),
+        Expanded(child: Text(title, style: const TextStyle(color: _ink, fontWeight: FontWeight.w600))),
+        Text(detail, style: const TextStyle(color: Color(0xFF6B7F93), fontSize: 12)),
+      ]),
+    );
+
+Widget _status(String label, Color color) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+    );
+
+class _TrustStrip extends StatelessWidget {
+  const _TrustStrip();
+  @override
+  Widget build(BuildContext context) => Container(
+        color: _navy,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: const _PageWidth(
+          child: Wrap(
+            alignment: WrapAlignment.spaceAround,
+            spacing: 32,
+            runSpacing: 18,
             children: [
-              // Sign Up Button
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/register');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 8,
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.person_add, size: 24),
-                    SizedBox(width: 12),
-                    Text(
-                      'Sign Up - New User',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(width: 24),
-              
-              // Get Started Button (existing users)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/dashboard');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 8,
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Get Started Now',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Icon(Icons.arrow_forward, size: 24),
-                  ],
-                ),
-              ),
+              _TrustItem(Icons.fact_check_outlined, 'Evidence with every result'),
+              _TrustItem(Icons.upload_file_outlined, 'CSV-ready workflow'),
+              _TrustItem(Icons.security_outlined, 'Conservative validation'),
+              _TrustItem(Icons.speed_outlined, 'Built for batch processing'),
             ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
+}
 
-  Widget _buildFooter(BuildContext context) {
-    return Container(
-      color: Colors.grey[900],
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
+class _TrustItem extends StatelessWidget {
+  const _TrustItem(this.icon, this.text);
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: const Color(0xFF65D6B5), size: 20),
+        const SizedBox(width: 9),
+        Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      ]);
+}
+
+class _Workflow extends StatelessWidget {
+  const _Workflow();
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 104),
+        child: _PageWidth(
+          child: Column(children: [
+            const _Eyebrow('A CLEARER WORKFLOW'),
+            const SizedBox(height: 14),
+            Text('From raw rows to ready-to-contact leads', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall?.copyWith(color: _navy, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 48),
+            const Wrap(spacing: 20, runSpacing: 20, children: [
+              _StepCard('01', Icons.upload_file_outlined, 'Import', 'Upload a CSV. Smart field mapping keeps your source columns intact.'),
+              _StepCard('02', Icons.auto_awesome_outlined, 'Enrich', 'Discover likely business emails using company and person signals.'),
+              _StepCard('03', Icons.verified_outlined, 'Validate', 'Review syntax, mail routing, server response, and catch-all risk.'),
+            ]),
+          ]),
+        ),
+      );
+}
+
+class _StepCard extends StatelessWidget {
+  const _StepCard(this.number, this.icon, this.title, this.body);
+  final String number;
+  final IconData icon;
+  final String title;
+  final String body;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 360,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(color: _cloud, borderRadius: BorderRadius.circular(18)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Icon(icon, color: _blue, size: 30),
+            Text(number, style: const TextStyle(color: Color(0xFFBBC9D6), fontSize: 28, fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: 28),
+          Text(title, style: const TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          Text(body, style: const TextStyle(color: Color(0xFF60758A), height: 1.55)),
+        ]),
+      );
+}
+
+class _ValidationSection extends StatelessWidget {
+  const _ValidationSection();
+  @override
+  Widget build(BuildContext context) => Container(
+        color: _cloud,
+        padding: const EdgeInsets.symmetric(vertical: 96),
+        child: _PageWidth(
+          child: LayoutBuilder(builder: (context, constraints) {
+            const copy = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _Eyebrow('VALIDATION WITH NUANCE'),
+              SizedBox(height: 16),
+              Text('“Unknown” is better than a false promise.', style: TextStyle(color: _navy, fontSize: 38, height: 1.12, fontWeight: FontWeight.w800)),
+              SizedBox(height: 18),
+              Text('Mail servers often hide mailbox status. EnricherPro separates confirmed, risky, invalid, and inconclusive results—so your team can make the right call.', style: TextStyle(color: Color(0xFF60758A), fontSize: 18, height: 1.55)),
+            ]);
+            const checks = Column(children: [
+              _Check('Syntax and domain structure', 'Instant'),
+              _Check('DNS and prioritized MX routing', 'Verified'),
+              _Check('Mailbox server response', 'Conservative'),
+              _Check('Catch-all and role-account risk', 'Flagged'),
+            ]);
+            return constraints.maxWidth < 800
+                ? const Column(children: [copy, SizedBox(height: 40), checks])
+                : const Row(children: [Expanded(child: copy), SizedBox(width: 70), Expanded(child: checks)]);
+          }),
+        ),
+      );
+}
+
+class _Check extends StatelessWidget {
+  const _Check(this.title, this.tag);
+  final String title;
+  final String tag;
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFDCE6EF))),
+        child: Row(children: [
+          const Icon(Icons.check_circle, color: _mint),
+          const SizedBox(width: 12),
+          Expanded(child: Text(title, style: const TextStyle(color: _ink, fontWeight: FontWeight.w700))),
+          _status(tag.toUpperCase(), _blue),
+        ]),
+      );
+}
+
+class _FinalCta extends StatelessWidget {
+  const _FinalCta({required this.onLaunch});
+  final VoidCallback onLaunch;
+  @override
+  Widget build(BuildContext context) => Container(
+        color: _blue,
+        padding: const EdgeInsets.symmetric(vertical: 76),
+        child: _PageWidth(
+          child: Column(children: [
+            const Text('Put better data behind every outreach.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 14),
+            const Text('Upload a contact list and see what EnricherPro can verify.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFDCE8FF), fontSize: 18)),
+            const SizedBox(height: 28),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: _blue),
+              onPressed: onLaunch,
+              child: const Text('Open EnricherPro'),
             ),
-            child: Image.asset(
-              'assets/images/enricherpro_logo_large.png',
-              height: 50,
-              fit: BoxFit.contain,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            '© 2024 EnricherPro.com - Professional B2B Contact Enrichment',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Empowering sales teams with verified, reliable contact data',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Version number - bottom right
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  AppVersion.displayVersion,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ]),
+        ),
+      );
+}
+
+class _Footer extends StatelessWidget {
+  const _Footer();
+  @override
+  Widget build(BuildContext context) => const _PageWidth(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 34),
+          child: Row(children: [
+            Text('© 2026 EnricherPro', style: TextStyle(color: Color(0xFF60758A))),
+            Spacer(),
+            Text('Built for responsible B2B outreach', style: TextStyle(color: Color(0xFF60758A))),
+          ]),
+        ),
+      );
 }

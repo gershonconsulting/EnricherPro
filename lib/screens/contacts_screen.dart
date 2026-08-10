@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -606,31 +605,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                ElevatedButton.icon(
+                FilledButton.icon(
                   onPressed: _pickCsvFile,
-                  icon: const Icon(Icons.file_upload),
-                  label: const Text('Upload CSV File'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                  ),
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Upload CSV'),
                 ),
-                const SizedBox(width: 16),
-                ElevatedButton.icon(
+                OutlinedButton.icon(
                   onPressed: _showPasteCsvDialog,
                   icon: const Icon(Icons.content_paste),
-                  label: const Text('Paste CSV Data'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                  ),
+                  label: const Text('Paste data'),
                 ),
               ],
             ),
@@ -648,59 +636,72 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildActionBar(ContactProvider provider) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[300]!),
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE6EF)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text(
+          const Text(
+            'Contact workspace',
+            style: TextStyle(
+              color: Color(0xFF102A43),
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          _summaryBadge(
             '${provider.totalCount} contacts',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            const Color(0xFF2563EB),
           ),
-          const SizedBox(width: 16),
-          if (provider.enrichedCount > 0)
-            Chip(
-              label: Text('${provider.enrichedCount} enriched'),
-              backgroundColor: Colors.green[100],
-              labelStyle: TextStyle(color: Colors.green[900]),
-            ),
-          const Spacer(),
-          TextButton.icon(
+          _summaryBadge(
+            '${provider.enrichedCount} enriched',
+            const Color(0xFF20B486),
+          ),
+          OutlinedButton.icon(
             onPressed: _pickCsvFile,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Load New CSV'),
+            icon: const Icon(Icons.add),
+            label: const Text('New list'),
           ),
-          const SizedBox(width: 8),
           if (kDebugMode)
-            TextButton.icon(
+            IconButton(
+              tooltip: 'Clear local test data',
               onPressed: () async {
-                // Clear all data and force fresh start
-                final provider = context.read<ContactProvider>();
                 provider.clearContacts();
                 await Hive.box('file_uploads').clear();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cache cleared! Please upload CSV again.')),
-                  );
-                }
               },
-              icon: const Icon(Icons.delete_sweep, color: Colors.red),
-              label: const Text('Clear Cache', style: TextStyle(color: Colors.red)),
+              icon: const Icon(Icons.delete_sweep_outlined),
             ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
+          FilledButton.icon(
             onPressed: provider.enrichedCount > 0 ? _exportCsv : null,
-            icon: const Icon(Icons.download),
-            label: const Text('Export CSV'),
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Export'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _summaryBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -914,9 +915,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
     String displayText;
     
     if (status == 'completed') {
-      color = Colors.green;
+      color = const Color(0xFF20B486);
       icon = Icons.check_circle;
-      displayText = 'completed';
+      displayText = 'Enriched';
     } else if (status.startsWith('error')) {
       color = Colors.red;
       icon = Icons.error;
@@ -935,13 +936,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         displayText = errorMsg.length > 35 ? '${errorMsg.substring(0, 35)}...' : errorMsg;
       }
     } else if (status == 'pending') {
-      color = Colors.orange;
+      color = const Color(0xFFF59E0B);
       icon = Icons.pending;
-      displayText = 'pending';
+      displayText = 'Pending';
     } else if (status == 'processing') {
-      color = Colors.blue;
+      color = const Color(0xFF2563EB);
       icon = Icons.sync;
-      displayText = 'processing';
+      displayText = 'Processing';
     } else {
       color = Colors.grey;
       icon = Icons.help;
@@ -950,13 +951,27 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     return Tooltip(
       message: status, // Show full status on hover
-      child: Chip(
-        avatar: Icon(icon, size: 16, color: Colors.white),
-        label: Text(displayText),
-        backgroundColor: color,
-        labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              displayText,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

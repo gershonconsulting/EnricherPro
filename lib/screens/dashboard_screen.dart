@@ -1,12 +1,18 @@
-import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
+
+import '../models/file_upload.dart';
 import '../providers/contact_provider.dart';
 import '../services/file_upload_service.dart';
-import '../models/file_upload.dart';
 import '../widgets/csv_field_analysis_dialog.dart';
 import 'main_layout.dart';
+
+const _ink = Color(0xFF102A43);
+const _muted = Color(0xFF60758A);
+const _blue = Color(0xFF2563EB);
+const _mint = Color(0xFF20B486);
+const _amber = Color(0xFFF59E0B);
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,699 +22,448 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Key to force rebuild of recent uploads
   Key _uploadsKey = UniqueKey();
-  
+
   Future<void> _pickCsvFile() async {
-    print('🔍 _pickCsvFile called');
     try {
-      print('📂 Opening file picker...');
-      final result = await FilePicker.platform.pickFiles(
+      final selection = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
         withData: true,
       );
-
-      print('📊 File picker result: ${result != null ? "File selected" : "No file selected"}');
-
-      if (result != null && result.files.single.bytes != null) {
-        if (!mounted) return;
-        
-        final bytes = result.files.single.bytes!;
-        final fileName = result.files.single.name;
-        print('✅ File loaded: $fileName (${bytes.length} bytes)');
-        
-        // Analyze CSV fields first
-        print('🔍 Analyzing CSV fields...');
-        final analysis = await context.read<ContactProvider>().analyzeCsvFields(bytes, fileName);
-        print('📋 Analysis complete: ${analysis.fields.length} fields analyzed');
-        
-        if (!mounted) return;
-        
-        // Show analysis dialog
-        print('💬 Showing analysis dialog...');
-        final confirmed = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => CsvFieldAnalysisDialog(
-            analysis: analysis,
-            onConfirm: () => Navigator.of(context).pop(true),
-            onCancel: () => Navigator.of(context).pop(false),
-          ),
-        );
-        
-        print('✓ Dialog result: ${confirmed == true ? "Confirmed" : "Cancelled"}');
-        
-        // If user confirmed, proceed with loading
-        if (confirmed == true) {
-          if (!mounted) return;
-          print('📥 Loading contacts from CSV...');
-          await context.read<ContactProvider>().loadContactsFromCsv(bytes, fileName);
-          print('✅ Contacts loaded successfully');
-          
-          // Refresh recent uploads list
-          setState(() {
-            _uploadsKey = UniqueKey();
-          });
-          
-          // Show success message
-          if (!mounted) return;
-          final contactCount = context.read<ContactProvider>().totalCount;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ $contactCount contacts loaded successfully! Navigating to Contacts...'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-          
-          // Navigate to Contacts screen immediately
-          if (!mounted) return;
-          // Navigate to MainLayout with Contacts tab (index 1)
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const MainLayout(initialIndex: 1),
-            ),
-          );
-        }
-      } else {
-        print('⚠️ No file selected or no bytes available');
+      if (selection == null || selection.files.single.bytes == null || !mounted) {
+        return;
       }
-    } catch (e, stackTrace) {
-      print('❌ ERROR in _pickCsvFile: $e');
-      print('Stack trace: $stackTrace');
+
+      final file = selection.files.single;
+      final analysis = await context
+          .read<ContactProvider>()
+          .analyzeCsvFields(file.bytes!, file.name);
+      if (!mounted) return;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CsvFieldAnalysisDialog(
+          analysis: analysis,
+          onConfirm: () => Navigator.pop(context, true),
+          onCancel: () => Navigator.pop(context, false),
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      await context
+          .read<ContactProvider>()
+          .loadContactsFromCsv(file.bytes!, file.name);
+      if (!mounted) return;
+      setState(() => _uploadsKey = UniqueKey());
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainLayout(initialIndex: 1)),
+      );
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load CSV: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Could not import that CSV: $error')),
       );
     }
   }
 
+  Future<void> _export() async {
+    final provider = context.read<ContactProvider>();
+    if (provider.enrichedCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enrich at least one contact before exporting.')),
+      );
+      return;
+    }
+    await provider.exportToCsv();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Stats Cards
-          Consumer<ContactProvider>(
-            builder: (context, provider, _) {
-              return Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      title: 'Total Contacts',
-                      value: provider.totalCount.toString(),
-                      icon: Icons.contacts,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      title: 'Enriched',
-                      value: provider.enrichedCount.toString(),
-                      icon: Icons.check_circle,
-                      color: Colors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      title: 'Pending',
-                      value: (provider.totalCount - provider.enrichedCount)
-                          .toString(),
-                      icon: Icons.pending,
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      title: 'Success Rate',
-                      value: provider.totalCount > 0
-                          ? '${((provider.enrichedCount / provider.totalCount) * 100).toStringAsFixed(1)}%'
-                          : '0%',
-                      icon: Icons.trending_up,
-                      color: Colors.purple,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // Quick Actions
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          _buildQuickActions(context),
-          
-          const SizedBox(height: 32),
-          
-          // Recent Activity
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: KeyedSubtree(
-                    key: _uploadsKey,
-                    child: _buildRecentUploads(context),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _buildQuickTips(context),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    BuildContext context, {
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Column(
-      children: [
-        // PRIMARY ACTION: Upload CSV (Large, Prominent)
-        _buildPrimaryUploadCard(context),
-        
-        const SizedBox(height: 32),
-        
-        // Secondary Actions (Smaller)
-        Row(
-          children: [
-            Expanded(
-              child: _buildSecondaryActionCard(
-                context,
-                icon: Icons.auto_fix_high,
-                label: 'Enrich All',
-                color: Colors.green[600]!,
-                onTap: () {
-                  final provider = context.read<ContactProvider>();
-                  if (provider.hasContacts && !provider.isEnriching) {
-                    provider.enrichAllContacts();
-                  }
-                },
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSecondaryActionCard(
-                context,
-                icon: Icons.download,
-                label: 'Export CSV',
-                color: Colors.orange[600]!,
-                onTap: () async {
-                  final provider = context.read<ContactProvider>();
-                  if (provider.enrichedCount > 0) {
-                    await provider.exportToCsv();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('CSV exported successfully!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No enriched contacts to export'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  }
-                },
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSecondaryActionCard(
-                context,
-                icon: Icons.settings,
-                label: 'Settings',
-                color: Colors.purple[600]!,
-                onTap: () {
-                  // Navigate to Settings tab
-                  final mainLayoutState = context.findAncestorStateOfType<State>();
-                  // For now, show message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Click "Settings" in the left sidebar'),
-                      backgroundColor: Colors.blue,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPrimaryUploadCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue[600]!,
-            Colors.blue[800]!,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue[200]!.withValues(alpha: 0.5),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: _pickCsvFile,
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.cloud_upload,
-                size: 64,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Upload Your CSV File',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Start enriching your contact list with verified emails',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.file_upload, color: Colors.blue[600], size: 24),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Choose File',
-                    style: TextStyle(
-                      color: Colors.blue[600],
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSecondaryActionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-
-
-  Widget _buildRecentUploads(BuildContext context) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Uploads',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Click \"History\" in the left sidebar to see all uploads'),
-                        backgroundColor: Colors.blue,
-                      ),
-                    );
-                  },
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: FutureBuilder<List<FileUpload>>(
-                future: Future.value(FileUploadService.getAllFileUploads()),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+    return Consumer<ContactProvider>(
+      builder: (context, provider, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 780;
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(compact ? 18 : 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _WelcomeHeader(onImport: _pickCsvFile),
+                    const SizedBox(height: 26),
+                    _Metrics(provider: provider),
+                    const SizedBox(height: 26),
+                    if (compact) ...[
+                      _ImportPanel(onImport: _pickCsvFile),
+                      const SizedBox(height: 20),
+                      _PipelinePanel(provider: provider, onExport: _export),
+                    ] else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.folder_open,
-                            size: 64,
-                            color: Colors.grey[300],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No recent uploads',
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 16,
-                            ),
+                          Expanded(flex: 3, child: _ImportPanel(onImport: _pickCsvFile)),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            flex: 2,
+                            child: _PipelinePanel(provider: provider, onExport: _export),
                           ),
                         ],
                       ),
-                    );
-                  }
-
-                  final uploads = snapshot.data!.take(5).toList();
-                  return ListView.separated(
-                    itemCount: uploads.length,
-                    separatorBuilder: (_, __) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final upload = uploads[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          child: Icon(
-                            Icons.file_present,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        title: Text(
-                          upload.fileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${upload.recordCount} contacts • ${_formatDate(upload.uploadDate)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        trailing: Chip(
-                          label: Text(
-                            upload.status,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          backgroundColor: _getStatusColor(upload.status),
-                        ),
-                      );
-                    },
-                  );
-                },
+                    const SizedBox(height: 26),
+                    _RecentUploads(key: _uploadsKey),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
-  }
-
-  Widget _buildQuickTips(BuildContext context) {
-    final tips = [
-      Tip(
-        icon: Icons.lightbulb,
-        title: 'LinkedIn URLs',
-        description: 'Provide LinkedIn URLs for faster email enrichment',
-        color: Colors.amber,
-      ),
-      Tip(
-        icon: Icons.speed,
-        title: 'Batch Processing',
-        description: 'Process multiple contacts at once for efficiency',
-        color: Colors.blue,
-      ),
-      Tip(
-        icon: Icons.verified,
-        title: 'MX Validation',
-        description: 'All emails are verified using MX record validation',
-        color: Colors.green,
-      ),
-      Tip(
-        icon: Icons.save,
-        title: 'Export Results',
-        description: 'Export enriched data to CSV for easy integration',
-        color: Colors.purple,
-      ),
-    ];
-
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Quick Tips',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.separated(
-                itemCount: tips.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  final tip = tips[index];
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: tip.color.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          tip.icon,
-                          color: tip.color,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tip.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              tip.description,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return 'Today';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green.withValues(alpha: 0.2);
-      case 'processing':
-        return Colors.blue.withValues(alpha: 0.2);
-      case 'failed':
-        return Colors.red.withValues(alpha: 0.2);
-      default:
-        return Colors.grey.withValues(alpha: 0.2);
-    }
   }
 }
 
-class Tip {
+class _WelcomeHeader extends StatelessWidget {
+  const _WelcomeHeader({required this.onImport});
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: 20,
+        runSpacing: 16,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const SizedBox(
+            width: 620,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Good data starts here.',
+                  style: TextStyle(
+                    color: _ink,
+                    fontSize: 30,
+                    height: 1.15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.5,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Import a list, review the field mapping, and enrich contacts with evidence behind every result.',
+                  style: TextStyle(color: _muted, fontSize: 16, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: onImport,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('New enrichment'),
+          ),
+        ],
+      );
+}
+
+class _Metrics extends StatelessWidget {
+  const _Metrics({required this.provider});
+  final ContactProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = provider.totalCount - provider.enrichedCount;
+    final rate = provider.totalCount == 0
+        ? '—'
+        : '${(provider.enrichedCount / provider.totalCount * 100).round()}%';
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < 700
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 48) / 4;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _Metric('Contacts', '${provider.totalCount}', Icons.people_outline, _blue, width),
+            _Metric('Enriched', '${provider.enrichedCount}', Icons.verified_outlined, _mint, width),
+            _Metric('Pending', '$pending', Icons.schedule_outlined, _amber, width),
+            _Metric('Completion', rate, Icons.insights_outlined, const Color(0xFF7C3AED), width),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric(this.label, this.value, this.icon, this.color, this.width);
+  final String label;
+  final String value;
   final IconData icon;
-  final String title;
-  final String description;
+  final Color color;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: width,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFDCE6EF)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value, style: const TextStyle(color: _ink, fontSize: 26, fontWeight: FontWeight.w800)),
+                Text(label, style: const TextStyle(color: _muted, fontSize: 13)),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _ImportPanel extends StatelessWidget {
+  const _ImportPanel({required this.onImport});
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1F33),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(Icons.upload_file_outlined, color: Color(0xFF65D6B5)),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Bring in your next contact list',
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'CSV files are analyzed before import. You can confirm name, company, title, email, and LinkedIn mappings before anything runs.',
+              style: TextStyle(color: Color(0xFFB8C8D8), height: 1.55),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: _ink,
+              ),
+              onPressed: onImport,
+              icon: const Icon(Icons.folder_open_outlined),
+              label: const Text('Choose CSV file'),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Recommended: First name, last name, company, and title',
+              style: TextStyle(color: Color(0xFF8FA5B8), fontSize: 12),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PipelinePanel extends StatelessWidget {
+  const _PipelinePanel({required this.provider, required this.onExport});
+  final ContactProvider provider;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = provider.totalCount == 0
+        ? 0.0
+        : provider.enrichedCount / provider.totalCount;
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCE6EF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Current pipeline', style: TextStyle(color: _ink, fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(
+            provider.totalCount == 0
+                ? 'No list loaded yet'
+                : '${provider.enrichedCount} of ${provider.totalCount} contacts enriched',
+            style: const TextStyle(color: _muted),
+          ),
+          const SizedBox(height: 24),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: const Color(0xFFE8EEF5),
+              color: _mint,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _Signal(
+            icon: provider.apiHealthy ? Icons.check_circle_outline : Icons.error_outline,
+            label: 'Validation API',
+            value: provider.apiHealthy ? 'Connected' : 'Unavailable',
+            color: provider.apiHealthy ? _mint : _amber,
+          ),
+          const SizedBox(height: 12),
+          const _Signal(
+            icon: Icons.shield_outlined,
+            label: 'Result policy',
+            value: 'Conservative',
+            color: _blue,
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: provider.enrichedCount > 0 ? onExport : null,
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Export enriched CSV'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Signal extends StatelessWidget {
+  const _Signal({required this.icon, required this.label, required this.value, required this.color});
+  final IconData icon;
+  final String label;
+  final String value;
   final Color color;
 
-  Tip({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.color,
-  });
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(color: _muted))),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+        ],
+      );
+}
+
+class _RecentUploads extends StatelessWidget {
+  const _RecentUploads({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uploads = FileUploadService.getAllFileUploads().take(5).toList();
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDCE6EF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Recent files', style: TextStyle(color: _ink, fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 18),
+          if (uploads.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.inbox_outlined, color: Color(0xFF9AAEC0), size: 36),
+                    SizedBox(height: 10),
+                    Text('Your imported files will appear here.', style: TextStyle(color: _muted)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...uploads.map(_UploadRow.new),
+        ],
+      ),
+    );
+  }
+}
+
+class _UploadRow extends StatelessWidget {
+  const _UploadRow(this.upload);
+  final FileUpload upload;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFE7EDF3))),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.description_outlined, color: _blue),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(upload.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+                  Text('${upload.recordCount} contacts', style: const TextStyle(color: _muted, fontSize: 12)),
+                ],
+              ),
+            ),
+            _StatusBadge(upload.status),
+          ],
+        ),
+      );
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge(this.status);
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = status.toLowerCase() == 'completed';
+    final color = complete ? _mint : _amber;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
 }

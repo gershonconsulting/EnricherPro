@@ -40,18 +40,44 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
+            seedColor: const Color(0xFF2563EB),
             brightness: Brightness.light,
+            surface: Colors.white,
           ),
+          scaffoldBackgroundColor: const Color(0xFFF5F8FC),
           useMaterial3: true,
+          fontFamily: 'Arial',
+          textTheme: const TextTheme(
+            displayLarge: TextStyle(fontSize: 58),
+            displaySmall: TextStyle(fontSize: 40),
+          ),
           appBarTheme: const AppBarTheme(
-            centerTitle: true,
+            centerTitle: false,
             elevation: 0,
+            backgroundColor: Colors.white,
+            foregroundColor: Color(0xFF102A43),
           ),
           cardTheme: CardThemeData(
-            elevation: 2,
+            elevation: 0,
+            color: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFDCE6EF)),
+            ),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 17),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              side: const BorderSide(color: Color(0xFFC9D7E5)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
