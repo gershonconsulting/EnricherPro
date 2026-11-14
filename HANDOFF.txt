@@ -1,0 +1,137 @@
+================================================================
+HANDOFF.txt  -  EnricherPro
+Written by: Claude (nightly run) - token-limit handoff protocol
+Date: 2026-10-22 (night of 2026-10-21 ET)
+Reason: every repo must carry a handoff so another AI can continue
+        from this file alone.
+================================================================
+
+0. WHO YOU ARE READING THIS
+----------------------------------------------------------------
+You are an AI assistant taking over this repository for Olivier Attia,
+founder / CTO of Gershon Consulting LLC.
+
+Read the MASTER HANDOFF first:
+  github.com/gershonconsulting/memory -> HANDOFF.txt
+
+CRITICAL OPERATING RULES:
+  * Olivier does NOT use a terminal, CLI, git or PowerShell. Never give
+    him commands or 'just run this' steps.
+  * He does NOT upload/download/move files. YOU find the route.
+  * End every actionable reply with:
+      GREEN CHECK = ready for him to test (+ link)
+      RED CROSS   = something still to do (+ exactly 3 options he can
+                    action - never a CLI step)
+  * Executors: Ariel = code/repo work. Charles = Chrome extension and web
+    admin panels (Cloudflare, GitHub settings, DNS, publishing).
+
+1. WHAT THIS REPO IS
+----------------------------------------------------------------
+Product / site name : EnricherPro (enricherpro.com)
+Live URL            : https://enricherpro.com intended (PRODUCTION_DOMAIN.md);
+                      go-live status UNVERIFIED. Per Olivier's memory (as of
+                      2026-09-14) api.enricherpro.com did not resolve and the
+                      live API was still the fabricating v2.0.
+What it does        : B2B contact enrichment: upload CSV, find and VERIFY work
+                      emails, validate LinkedIn URLs, export enriched CSV.
+Who uses it         : INTERNAL TOOL for Olivier only until viable (decision
+                      2026-09-08). Planned: other Gershon apps call its API,
+                      but NOT until v5.3 is deployed and proven.
+
+2. STACK AND DEPLOY ROUTE
+----------------------------------------------------------------
+Language / framework: Flutter web/mobile frontend (Dart, pubspec needs
+                      ^3.9.2) + Cloudflare Pages advanced-mode worker
+                      (_worker.js, v5.3) handling /api/* same-origin.
+                      Legacy Python FastAPI backend in backend/ (v2.0 and a
+                      v5.0 draft) - superseded by the worker.
+Hosting             : Cloudflare Pages (this repo is an exception to the
+                      Hostinger default). Build: `bash cloudflare-build.sh`,
+                      output dir `build/web`. The script downloads pinned
+                      Flutter 3.47.5 and copies _worker.js into build/web.
+DNS / registrar     : Tierra.net; Cloudflare. A/ALIAS @ -> frontend host,
+                      CNAME www -> enricherpro.com (not created yet -
+                      unverified).
+Deploy method       : Cloudflare Pages Git integration (build runs on push).
+                      No .github folder exists today (README mentions a CI
+                      workflow that is absent). First Pages build failed on
+                      the Flutter pin; fixed in commit 574b16f (2026-09-25);
+                      whether the rebuilt site is live is UNVERIFIED.
+Default branch      : main
+How to ship a change: Merge to main; Pages builds. Production domain steps are
+                      in PRODUCTION_DOMAIN.md. Dashboard steps = Charles.
+Secrets / env vars  : MILLIONVERIFIER_API_KEY (Cloudflare Pages secret,
+                      Production + Preview). Old backend .env names:
+                      API_HOST, API_PORT, ENABLE_SMTP_CHECK /
+                      ENABLE_SMTP_VALIDATION, LINKEDIN_API_KEY. Values in
+                      1Password; NEVER in the repo.
+
+3. RECENTLY DONE  [DONE]
+----------------------------------------------------------------
+- 2026-08-10 Experience + validation redesign.
+- 2026-09-09 (memory file) MillionVerifier coded into backend, 25/25 contract
+  tests passing.
+- 2026-09-25 v5.3 Cloudflare Pages worker: real verification, no fabricated
+  emails. Rules: email populated only after MillionVerifier confirms the
+  mailbox; catch_all never treated as verified; company that cannot resolve
+  to a mail domain yields no address; confidence derived, not constant;
+  linkedin_validated only for well-formed caller-supplied URL. Tracks its own
+  subrequest budget (Workers free plan = 50 per request).
+- 2026-09-25 Flutter pinned to 3.47.5 for the Pages build.
+
+4. PENDING  [TODO]
+----------------------------------------------------------------
+- Olivier must supply the MILLIONVERIFIER_API_KEY value (about 10,500
+  credits) into the Pages secret - Charles can set it in the dashboard.
+- Confirm the Pages project exists, builds green, and enricherpro.com is
+  attached.
+- Decide: publish the new homepage now with trimmed claims, or hold until
+  the backend matches its promises.
+- Test v5.3 on a real known company (Olivier distrusted the earlier
+  'Wolkvagen'/Volkswagen result).
+- Only AFTER v5.3 is live and verified: wire other Gershon apps (and the E2
+  lead tasks) to EnricherPro's API. Until then Snov.io is the working
+  fallback.
+
+5. MISSING / NOT BUILT YET
+----------------------------------------------------------------
+- SMTP checks (need a host that permits outbound port 25; Workers cannot).
+- Settings screen for the verification key in-app (Olivier asked for the
+  key in app settings - status unverified).
+- verify@enricherpro.com mailbox, SPF/DKIM/DMARC.
+- Screenshots, uptime checks for /health.
+
+6. KNOWN BUGS / NEEDS FIXING
+----------------------------------------------------------------
+- README is stale: describes v4.2, a sandbox demo URL and Firebase/Heroku
+  deploy options - not the Cloudflare route. Treat PRODUCTION_DOMAIN.md and
+  cloudflare-build.sh as authoritative.
+- Legacy v2.0 API invents addresses by slugifying the company name - never
+  trust its output or use it for real sends (hard bounces, domain damage).
+- Free-plan 50-subrequest limit caps batch size per request.
+
+7. NEXT ACTION - START HERE
+----------------------------------------------------------------
+The single most valuable next step is:
+  -> Ask Charles to confirm the Cloudflare Pages build is green and set
+     MILLIONVERIFIER_API_KEY, then run a 10-contact test of /api/enrich on
+     known companies and compare against reality.
+
+8. GOTCHAS / HARD-WON LESSONS
+----------------------------------------------------------------
+- Pin Flutter: unpinned `stable` can break a deploy; 3.24.5 shipped Dart
+  3.5.4 and failed against ^3.9.2.
+- _worker.js must sit at the ROOT of build/web (beside index.html).
+- Keep the frontend API base `/api` (same-origin, no CORS).
+- Do not wire other platforms to this API until v5.3 is live.
+- Related repo files: _worker.js, proxy_server.py and unified_server.py are
+  legacy local proxies.
+
+9. CONTACT / ESCALATION
+----------------------------------------------------------------
+Olivier Attia - oattia@gmail.com
+Report mailbox - report@gershonconsulting.com
+
+================================================================
+END OF HANDOFF
+================================================================
